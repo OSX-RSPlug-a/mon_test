@@ -1,0 +1,124 @@
+name: CI-CD Python App
+
+on:
+  workflow_dispatch: 
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  ECS_SERVICE: my-web-app-service
+  ECS_CLUSTER: my-web-app-cluster
+  IMAGE_TAG: ${{ github.sha }}
+
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Install additional tools for scanning if needed
+        pip install pip-audit safety
+
+    - name: Run Tests
+      run: |
+        # Replace with your actual test command (e.g., pytest)
+        pytest
+
+    - name: Scan for dependencies vulnerabilities
+      run: |
+        pip-audit --requirements requirements.txt || true # Use || true to not fail the workflow if vulnerabilities are found but allow SonarQube to complete.
+      continue-on-error: true 
+
+    - name: Scan for dependencies vulnerabilities with Safety
+      run: |
+        safety check -r requirements.txt || true # Use || true to not fail the workflow if vulnerabilities are found but allow SonarQube to complete.
+      continue-on-error: true 
+
+    - name: SonarQube Scan
+      uses: SonarSource/sonarcloud-github-action@v2.2.0
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      with:
+        projectBaseDir: .
+        args: >
+          -Dsonar.projectKey=YOUR_SONARQUBE_PROJECT_KEY
+          -Dsonar.organization=YOUR_SONARQUBE_ORGANIZATION_KEY # Only for SonarCloud
+          -Dsonar.sources=.
+          -Dsonar.python.version=3.9 # Match your Python version
+          -Dsonar.language=py
+          -Dsonar.scm.provider=git
+          -Dsonar.host.url=YOUR_SONARQUBE_HOST_URL # e.g., https://sonarcloud.io or your self-hosted URL
+          # Optional: Configure test report paths if you have them
+          # -Dsonar.python.xunit.reportPath=reports/junit/report.xml
+          # -Dsonar.coverage.jacoco.xmlReportPaths=reports/coverage/coverage.xml
+
+  deploy:
+    needs: build-and-scan
+    if: github.ref == 'refs/heads/main' && success() # Deploy only on push to main branch and if previous job succeeded
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+
+    - name: Install deployment dependencies
+      run: |
+        pip install your_deployment_tool
+
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, Tag, and Push Image to ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+      run: |
+        docker build -t $IMAGE_URI:$IMAGE_TAG .
+        docker push $IMAGE_URI:$IMAGE_TAG
+        echo "::set-output name=image::$IMAGE_URI:$IMAGE_TAG"
+
+    - name: Update ECS Task Definition
+      uses: aws-actions/ecs-deploy-task-definition@v2
+      with:
+        task-definition: my-web-app-task
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
