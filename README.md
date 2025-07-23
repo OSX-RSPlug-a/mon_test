@@ -57,10 +57,12 @@ To run the Github Action:
 
 
 - What was the major issue that you had and how id you solve it?
-    Because the short time, I just delivered the dev environment, but I  need work with new stages in dev and for the QA and Prod, so to solv it I would need more time;
+
+  Because the short time, I just delivered the dev environment, but I  need work with new stages in dev and for the QA and Prod, so to solv it I would need more time;
 
 
 - How do you envision all the environments?
+  
     1. Local Development
     2. Development / Dev Environment
     3. QA Environment
@@ -127,13 +129,21 @@ Planning:
 
 
 - What alternative do you propose for env variable management?
-    Work with Github env secreets or through Amazon ECS environment variables
+
+  Work with Github env secreets or through Amazon ECS environment variables
+
 
 - How would you improve availability in a production environment?
-    It needed create the workflow to QA and Prod environment;
+
+  It needed create the workflow to QA and Prod environment;
+
 
 - If you ran out of time, how did you envision your finished project?
-    If needed work extra time to finish and deliver;
+
+  If needed work extra time to finish and deliver;
 
 - What is your recommendation for future work?
-    It need doing another workflows and steps to scan the image vulnerabilty before go to QA and Prod ambients.
+  
+  It need doing another workflows and steps to scan the image vulnerabilty before go to QA and Prod ambients.
+
+  
